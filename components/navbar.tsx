@@ -55,7 +55,7 @@ const Navbar = () => {
               href="/mealplan"
               className="font-medium text-zinc-950 dark:text-zinc-50 tracking-wide"
             >
-              Mealplan
+              Home
             </Link>
             {user?.imageUrl ? (
               <Avatar>
