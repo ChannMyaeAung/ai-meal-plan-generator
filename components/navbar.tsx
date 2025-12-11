@@ -17,10 +17,6 @@ const Navbar = () => {
   const { setTheme } = useTheme();
   const { isLoaded, isSignedIn, user } = useUser();
 
-  if (!isLoaded) {
-    return <p>Loading...</p>;
-  }
-
   return (
     <nav className="fixed top-0 left-0 w-full shadow-sm z-50 ">
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -52,7 +48,7 @@ const Navbar = () => {
           </DropdownMenu>
           <SignedIn>
             <Link
-              href="/mealplan"
+              href="/"
               className="font-medium text-zinc-950 dark:text-zinc-50 tracking-wide"
             >
               Home
