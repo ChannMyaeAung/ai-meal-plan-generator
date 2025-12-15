@@ -10,6 +10,10 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { motion, type Variants } from "motion/react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 
 const containerVariants: Variants = {
   hidden: { opacity: 0, y: 35 },
@@ -45,7 +49,79 @@ const cardVariants: Variants = {
   },
 };
 
+type SubscribeResponse = {
+  url: string;
+};
+
+type SubscribeError = {
+  error: string;
+};
+
+async function subscribeToPlan(
+  planType: string,
+  userId: string,
+  email: string
+): Promise<SubscribeResponse> {
+  const response = await fetch("api/checkout", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      planType,
+      userId,
+      email,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData: SubscribeError = await response.json();
+    throw new Error(errorData.error || "Failed to create checkout session.");
+  }
+
+  const data: SubscribeResponse = await response.json();
+  return data;
+}
+
 const SubscribePage = () => {
+  const { user } = useUser();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const userId = user?.id;
+  const email = user?.emailAddresses[0]?.emailAddress || "";
+  const { mutate, isPending } = useMutation<
+    SubscribeResponse,
+    Error,
+    { planType: string }
+  >({
+    mutationFn: async ({ planType }) => {
+      if (!userId) {
+        throw new Error("User not signed in.");
+      }
+
+      return subscribeToPlan(planType, userId, email);
+    },
+    onMutate: () => {
+      toast.loading("Processing your subscription...", { id: "subscribe" });
+    },
+    onSuccess: (data) => {
+      toast.success("Redirecting to checkout...", { id: "subscribe" });
+      window.location.href = data.url;
+    },
+    onError: (error) => {
+      toast.error(error.message, { id: "subscribe" });
+    },
+  });
+
+  function handleSubcribe(planType: string) {
+    if (!userId) {
+      router.push("/sign-up");
+      return;
+    }
+
+    mutate({ planType });
+  }
+
   return (
     <motion.div
       initial="hidden"
@@ -120,7 +196,7 @@ const SubscribePage = () => {
                 <CardContent className="relative z-10 mt-6 flex flex-col gap-6 p-0">
                   <div>
                     <span className="text-4xl font-semibold text-slate-900 dark:text-white">
-                      ${plan.amount}
+                      THB {plan.amount}
                     </span>
                     <span className="ml-1 text-sm text-slate-500 dark:text-slate-300">
                       /plan
@@ -146,8 +222,10 @@ const SubscribePage = () => {
                         ? "bg-linear-to-r from-amber-400 via-rose-400 to-amber-500 text-slate-900"
                         : "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white/90 dark:text-slate-900"
                     }`}
+                    onClick={() => handleSubcribe(plan.interval)}
+                    disabled={isPending}
                   >
-                    Get {plan.name}
+                    {isPending ? "Processing..." : `Get ${plan.name}`}
                   </Button>
 
                   <p className="text-xs text-slate-500 dark:text-slate-300">

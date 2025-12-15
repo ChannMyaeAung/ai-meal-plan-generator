@@ -26,7 +26,7 @@ export const availablePlans: Plan[] = [
   },
   {
     name: "Monthly Plan",
-    amount: 249,
+    amount: 349,
     currency: "THB",
     interval: "month",
     isPopular: true,
@@ -41,7 +41,7 @@ export const availablePlans: Plan[] = [
   },
   {
     name: "Annual Plan",
-    amount: 1990,
+    amount: 6999,
     currency: "THB",
     interval: "year",
     isPopular: false,
@@ -55,3 +55,12 @@ export const availablePlans: Plan[] = [
     ],
   },
 ];
+
+const priceIDMap: Record<string, string> = {
+  week: process.env.STRIPE_PRICE_WEEKLY!,
+  month: process.env.STRIPE_PRICE_MONTHLY!,
+  year: process.env.STRIPE_PRICE_ANNUAL!,
+};
+
+// Function to get Price ID based on plan type (week, month, year)
+export const getPriceIDFromType = (planType: string) => priceIDMap[planType];

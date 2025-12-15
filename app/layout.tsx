@@ -5,6 +5,7 @@ import Navbar from "@/components/navbar";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "@/components/theme-provider";
 import ReactQueryClientProvider from "@/components/react-query-client-provider";
+import { Toaster } from "react-hot-toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,6 +44,7 @@ export default function RootLayout({
               <Navbar />
               {children}
             </ThemeProvider>
+            <Toaster />
           </body>
         </html>
       </ReactQueryClientProvider>
