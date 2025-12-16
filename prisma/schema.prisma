@@ -19,7 +19,7 @@ model Profile{
   email String 
   subscriptionActive Boolean @default(false)
   subscriptionTier String? 
-  stripeSubscriptionId String?
+  stripeSubscriptionId String? @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

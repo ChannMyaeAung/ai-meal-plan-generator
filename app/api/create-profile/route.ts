@@ -2,8 +2,12 @@ import { currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
+// POST /api/create-profile ensures every authenticated Clerk user has a
+// matching Prisma profile row that downstream features rely on.
+
 export async function POST(request: Request) {
   try {
+    // Clerk user lookup is required so we can map the profile to a stable id.
     const clerkUser = await currentUser();
     if (!clerkUser) {
       return NextResponse.json(
@@ -19,6 +23,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // Prevent duplicate Prisma rows on repeated calls (e.g., refresh).
     const existingProfile = await prisma.profile.findUnique({
       where: { userId: clerkUser.id },
     });
@@ -28,6 +33,7 @@ export async function POST(request: Request) {
       });
     }
 
+    // Seed a baseline profile so subscription/webhook flows can update it later.
     await prisma.profile.create({
       data: {
         userId: clerkUser.id,

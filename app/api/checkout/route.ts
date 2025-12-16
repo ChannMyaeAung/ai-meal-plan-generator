@@ -2,8 +2,12 @@ import { getPriceIDFromType } from "@/lib/plans";
 import { stripe } from "@/lib/stripe";
 import { NextRequest, NextResponse } from "next/server";
 
+// POST /api/checkout exchanges a selected plan for a Stripe Checkout session
+// so that client-side code can safely redirect the user to Stripe-hosted UI.
+
 export async function POST(req: NextRequest) {
   try {
+    // Stripe session metadata relies on these three values.
     const { planType, userId, email } = await req.json();
     if (!planType || !userId || !email) {
       return NextResponse.json(
@@ -12,6 +16,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Only allow plan types we actually price to avoid tampering.
     const allowedPlans = ["week", "month", "year"];
 
     if (!allowedPlans.includes(planType)) {
@@ -30,6 +35,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Determine where Stripe should send the buyer after checkout.
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
     if (!baseUrl) {
@@ -39,7 +45,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create stripe checkout session
+    // Create the subscription checkout session with the mapped price id.
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
