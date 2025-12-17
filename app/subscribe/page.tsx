@@ -127,36 +127,34 @@ const SubscribePage = () => {
       initial="hidden"
       animate="show"
       variants={containerVariants}
-      className={` relative isolate min-h-dvh overflow-hidden bg-linear-to-br from-rose-50 via-amber-50 to-slate-50 px-6 py-12 text-slate-900 dark:from-[#030712] dark:via-[#04050a] dark:to-[#000000] dark:text-slate-100 my-10`}
+      className="relative isolate min-h-dvh overflow-hidden bg-linear-to-br from-background via-secondary/25 to-card px-6 py-35 text-foreground"
     >
       <div className="pointer-events-none absolute inset-0 blur-3xl">
-        <div className="absolute left-1/2 top-10 h-64 w-64 -translate-x-1/2 rounded-full bg-rose-200/40 dark:bg-rose-500/20" />
-        <div className="absolute right-6 bottom-10 h-72 w-72 rounded-full bg-amber-200/40 dark:bg-amber-400/10" />
+        <div className="absolute left-1/2 top-10 h-64 w-64 -translate-x-1/2 rounded-full bg-primary/20" />
+        <div className="absolute right-6 bottom-10 h-72 w-72 rounded-full bg-secondary/30" />
       </div>
 
       <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-12">
         <motion.header variants={headerVariants} className="text-center">
-          <div className="mb-4 inline-flex items-center rounded-full border border-slate-200/70 bg-white/70 px-4 py-1 text-sm font-medium text-slate-500 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+          <div className="mb-4 inline-flex items-center rounded-full border border-border bg-card/80 px-4 py-1 text-sm font-medium text-foreground shadow-sm">
             Crystal-clear pricing · Cancel anytime
           </div>
-          <h1
-            className={` mx-auto max-w-3xl text-4xl font-semibold leading-tight text-slate-900 md:text-5xl dark:text-white`}
-          >
+          <h1 className="mx-auto max-w-3xl text-4xl font-semibold leading-tight text-foreground md:text-5xl">
             Plans that nourish your routine, not drain your budget
           </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600 md:text-lg dark:text-slate-300">
+          <p className="mx-auto mt-4 max-w-2xl text-base text-muted-foreground md:text-lg">
             Choose a cadence that matches your kitchen rhythm. Every plan
             unlocks AI-personalized meal plans, grocery-ready shopping lists,
             and mindful nutrition insights.
           </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-4 text-sm text-slate-500 dark:text-slate-300">
-            <span className="rounded-full border border-slate-200 bg-white px-4 py-2 shadow-sm dark:border-white/10 dark:bg-white/5">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
+            <span className="rounded-full border border-border bg-card px-4 py-2 shadow-sm">
               Macro-balanced menus updated weekly
             </span>
-            <span className="rounded-full border border-slate-200 bg-white px-4 py-2 shadow-sm dark:border-white/10 dark:bg-white/5">
+            <span className="rounded-full border border-border bg-card px-4 py-2 shadow-sm">
               Smart grocery syncing
             </span>
-            <span className="rounded-full border border-slate-200 bg-white px-4 py-2 shadow-sm dark:border-white/10 dark:bg-white/5">
+            <span className="rounded-full border border-border bg-card px-4 py-2 shadow-sm">
               Nutritionist-tuned AI
             </span>
           </div>
@@ -169,36 +167,34 @@ const SubscribePage = () => {
           {availablePlans.map((plan, idx) => (
             <motion.div key={idx} variants={cardVariants} className="h-full">
               <Card
-                className={`relative overflow-hidden rounded-3xl border border-white/70 bg-white/80 p-6 text-left shadow-xl backdrop-blur-sm transition-shadow dark:border-white/5 dark:bg-white/5 ${
-                  plan.isPopular
-                    ? "ring-2 ring-amber-400 dark:ring-amber-500"
-                    : "hover:shadow-2xl"
+                className={`relative overflow-hidden rounded-3xl border border-border bg-card/90 p-6 text-left shadow-xl backdrop-blur-sm transition-shadow ${
+                  plan.isPopular ? "ring-2 ring-primary/50" : "hover:shadow-2xl"
                 }`}
               >
-                <div className="absolute inset-x-0 top-0 h-24 bg-linear-to-b from-white/60 to-transparent dark:from-white/10" />
+                <div className="absolute inset-x-0 top-0 h-24 bg-linear-to-b from-card/70 to-transparent" />
                 {plan.isPopular && (
                   <div className="absolute right-6 top-6">
-                    <span className="inline-flex items-center rounded-full bg-amber-500/10 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">
+                    <span className="inline-flex items-center rounded-full bg-primary/15 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-foreground">
                       Most loved
                     </span>
                   </div>
                 )}
 
                 <CardHeader className="relative z-10 space-y-2 p-0">
-                  <CardTitle className="text-2xl font-semibold text-slate-900 dark:text-white">
+                  <CardTitle className="text-2xl font-semibold text-foreground">
                     {plan.name}
                   </CardTitle>
-                  <CardDescription className="text-base text-slate-500 dark:text-slate-300">
+                  <CardDescription className="text-base text-muted-foreground">
                     {plan.description}
                   </CardDescription>
                 </CardHeader>
 
                 <CardContent className="relative z-10 mt-6 flex flex-col gap-6 p-0">
                   <div>
-                    <span className="text-4xl font-semibold text-slate-900 dark:text-white">
+                    <span className="text-4xl font-semibold text-foreground">
                       THB {plan.amount}
                     </span>
-                    <span className="ml-1 text-sm text-slate-500 dark:text-slate-300">
+                    <span className="ml-1 text-sm text-muted-foreground">
                       /plan
                     </span>
                   </div>
@@ -206,10 +202,10 @@ const SubscribePage = () => {
                   <ul className="space-y-3">
                     {plan.features.map((feature, i) => (
                       <li key={i} className="flex items-start gap-3">
-                        <span className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-full primary-color text-white">
+                        <span className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
                           <Check className="h-3.5 w-3.5" />
                         </span>
-                        <span className="text-sm text-slate-600 dark:text-slate-200">
+                        <span className="text-sm text-foreground">
                           {feature}
                         </span>
                       </li>
@@ -217,10 +213,10 @@ const SubscribePage = () => {
                   </ul>
 
                   <Button
-                    className={`w-full rounded-full border-0 px-6 py-5 text-base font-semibold shadow-lg shadow-amber-500/20 transition ${
+                    className={`w-full rounded-full border-0 px-6 py-5 text-base font-semibold shadow-lg transition ${
                       plan.isPopular
-                        ? "bg-linear-to-r from-amber-400 via-rose-400 to-amber-500 text-slate-900"
-                        : "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white/90 dark:text-slate-900"
+                        ? "bg-primary text-primary-foreground shadow-primary/30 hover:brightness-95"
+                        : "bg-foreground text-background hover:brightness-95"
                     }`}
                     onClick={() => handleSubcribe(plan.interval)}
                     disabled={isPending}
@@ -228,7 +224,7 @@ const SubscribePage = () => {
                     {isPending ? "Processing..." : `Get ${plan.name}`}
                   </Button>
 
-                  <p className="text-xs text-slate-500 dark:text-slate-300">
+                  <p className="text-xs text-muted-foreground">
                     Secure checkout · Pause or cancel anytime · Includes
                     AI-powered grocery planning
                   </p>
