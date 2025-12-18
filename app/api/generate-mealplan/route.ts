@@ -5,6 +5,7 @@ const openAI = new OpenAI({
   baseURL: "https://openrouter.ai/api/v1",
 });
 
+// Shape for each day's meals when we parse the AI response
 interface DailyMealPlan {
   Breakfast?: string;
   Lunch?: string;
@@ -14,9 +15,11 @@ interface DailyMealPlan {
 
 export async function POST(request: Request) {
   try {
+    // Grab the user-sent JSON body from the request
     const { dietType, calories, allergies, cuisine, includeSnacks, days } =
       await request.json();
 
+    // Build a prompt that asks the model for a JSON meal plan
     const prompt = `
       You are a professional nutritionist. Create a ${days}-day meal plan for an individual following a ${dietType} diet aiming for ${calories} calories per day.
       
@@ -50,7 +53,7 @@ export async function POST(request: Request) {
         // ...and so on for each day
       }
 
-      Return just the json with no extra commentaries and no backticks.
+      Return only a JSON object. Do not include code fences, markdown, commentary, or keys other than the days and meals.
     `;
 
     // Send the prompt to the AI model
@@ -66,15 +69,30 @@ export async function POST(request: Request) {
       max_completion_tokens: 1500, // Adjust based on expected response length
     });
 
-    const aiContent = response.choices[0].message.content!.trim();
-    // Attempt to parse the AI's response as JSON
+    // Raw text returned by the model (may include code fences)
+    const aiContent = response.choices[0].message.content?.trim() ?? "";
+
+    // Strip markdown code fences/backticks so JSON.parse won't fail on fenced outputs
+    // aka sanitize the AI output into plain JSON so parsing doesn't fail when the model includes code fences ... ```
+    const cleanedContent = aiContent
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .trim();
+
+    // Attempt to parse the AI's response as JSON after cleaning
     let parsedMealPlan: { [day: string]: DailyMealPlan };
     try {
-      parsedMealPlan = JSON.parse(aiContent);
+      parsedMealPlan = JSON.parse(cleanedContent);
     } catch (e) {
-      console.error("Error parsing AI response:", e);
+      console.error("Error parsing AI response:", e, {
+        aiContent,
+        cleanedContent,
+      });
       return NextResponse.json(
-        { error: "Failed to parse meal plan from AI response." },
+        {
+          error: "Failed to parse meal plan from AI response.",
+          raw: cleanedContent,
+        },
         { status: 500 }
       );
     }
