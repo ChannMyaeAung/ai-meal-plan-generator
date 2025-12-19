@@ -15,11 +15,12 @@ export async function GET() {
       );
     }
 
-    // We only need to know whether subscription is active or not
+    // Pull subscription tier (and optionally active flag) for this user
     const profile = await prisma.profile.findUnique({
       where: { userId: clerkUser.id },
       select: {
         subscriptionTier: true,
+        subscriptionActive: true,
       },
     });
 
@@ -27,7 +28,16 @@ export async function GET() {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ subscriptionActive: profile }, { status: 200 });
+    // Match the shape the client expects: subscription.subscriptionTier
+    return NextResponse.json(
+      {
+        subscription: {
+          subscriptionTier: profile.subscriptionTier,
+          subscriptionActive: profile.subscriptionActive,
+        },
+      },
+      { status: 200 }
+    );
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
