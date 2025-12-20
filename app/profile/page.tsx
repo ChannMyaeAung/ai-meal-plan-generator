@@ -13,6 +13,7 @@ import { availablePlans } from "@/lib/plans";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Image from "next/image";
+import { useState } from "react";
 import { Toaster } from "react-hot-toast";
 
 async function fetchSubscriptionStatus() {
@@ -32,6 +33,7 @@ async function updatePlan(newPlan: string) {
 }
 
 const ProfilePage = () => {
+  const [selectedPlan, setSelectedPlan] = useState<string>("");
   const { isLoaded, isSignedIn, user } = useUser();
   const {
     data: subscription,
@@ -57,6 +59,14 @@ const ProfilePage = () => {
     (plan) => plan.interval === subscription?.subscription?.subscriptionTier
   );
 
+  function handleUpdatePlan() {
+    if (selectedPlan) {
+      updatePlanMutation(selectedPlan);
+    }
+
+    setSelectedPlan("");
+  }
+
   if (!isLoaded) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -75,9 +85,9 @@ const ProfilePage = () => {
   }
 
   return (
-    <div className="min-h-screen px-4 py-8 sm:py-35 max-w-7xl mx-auto overflow-hidden">
+    <div className="min-h-screen px-4 py-8 sm:py-35 max-w-7xl mx-auto overflow-hidden space-y-4">
       <Toaster position="top-center" />
-      <div className="flex flex-col gap-8">
+      <div className="">
         <div className="flex items-center gap-4">
           {user.imageUrl && (
             <Image
@@ -97,7 +107,9 @@ const ProfilePage = () => {
             </p>
           </div>
         </div>
-
+      </div>
+      <div className="flex flex-col gap-8 md:flex-row md:gap-16">
+        {/* Subscription Details */}
         <div>
           <h2 className="text-xl font-semibold mb-4">Subscription Details</h2>
           {isLoading ? (
@@ -105,8 +117,10 @@ const ProfilePage = () => {
           ) : isError ? (
             <p className="text-red-500">{error?.message}</p>
           ) : subscription ? (
-            <div className="bg-card border border-border rounded-lg p-6">
-              <h3 className="text-lg font-medium mb-4">Current Plan</h3>
+            <div className="bg-card border border-ring rounded-lg p-6">
+              <h3 className="text-lg font-medium mb-4 text-primary">
+                Current Plan
+              </h3>
               {currentPlan ? (
                 <div className="space-y-2">
                   <p>
@@ -140,32 +154,48 @@ const ProfilePage = () => {
             <p>You are not subscribed to any plan.</p>
           )}
         </div>
-      </div>
-      <div>
-        <h3>Change Subscription Plan</h3>
-        {currentPlan && (
-          <>
-            <Select
-              defaultValue={currentPlan?.interval}
-              disabled={isUpdatePlanPending}
-            >
-              <SelectTrigger className="w-[280px]">
-                <SelectValue placeholder={currentPlan.interval} />
-              </SelectTrigger>
 
-              <SelectContent>
-                <SelectGroup>
-                  {availablePlans.map((plan, key) => (
-                    <SelectItem key={key} value={plan.interval}>
-                      {plan.name} - THB {plan.amount} / {plan.interval}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <Button>Save Changes</Button>
-          </>
-        )}
+        {/* Change Subscription Plan */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold mb-4">
+            Change Subscription Plan
+          </h2>
+          {currentPlan && (
+            <>
+              <Select
+                defaultValue={currentPlan?.interval}
+                disabled={isUpdatePlanPending}
+                onValueChange={(value: string) => setSelectedPlan(value)}
+              >
+                <SelectTrigger className="w-[280px] border-ring">
+                  <SelectValue placeholder={currentPlan.interval} />
+                </SelectTrigger>
+
+                <SelectContent>
+                  <SelectGroup>
+                    {availablePlans.map((plan, key) => (
+                      <SelectItem key={key} value={plan.interval}>
+                        {plan.name} - THB {plan.amount} / {plan.interval}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <Button onClick={handleUpdatePlan}>Save Changes</Button>
+              {isUpdatePlanPending && (
+                <div>
+                  {" "}
+                  <Spinner /> Updating Plan...
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Cancel Subscription */}
+          <div>
+            <Button variant={"destructive"}>Cancel Subscription</Button>
+          </div>
+        </div>
       </div>
     </div>
   );
