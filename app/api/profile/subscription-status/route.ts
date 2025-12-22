@@ -1,44 +1,30 @@
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { currentUser } from "@clerk/nextjs/server";
-import { error } from "console";
-import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
     const clerkUser = await currentUser();
     if (!clerkUser?.id) {
-      return NextResponse.json(
-        {
-          error: "User not authenticated",
-        },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Pull subscription tier (and optionally active flag) for this user
+    // Fetch user profile via Prisma
     const profile = await prisma.profile.findUnique({
       where: { userId: clerkUser.id },
-      select: {
-        subscriptionTier: true,
-        subscriptionActive: true,
-      },
     });
 
+    // If no profile found, return null
     if (!profile) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+      return NextResponse.json({ subscription: null });
     }
 
-    // Match the shape the client expects: subscription.subscriptionTier
-    return NextResponse.json(
-      {
-        subscription: {
-          subscriptionTier: profile.subscriptionTier,
-          subscriptionActive: profile.subscriptionActive,
-        },
-      },
-      { status: 200 }
-    );
+    return NextResponse.json({ subscription: profile });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Error fetching subscription:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch subscription details." },
+      { status: 500 }
+    );
   }
 }

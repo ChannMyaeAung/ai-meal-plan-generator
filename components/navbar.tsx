@@ -34,19 +34,20 @@ const Navbar = () => {
   const { isLoaded, isSignedIn, user } = useUser();
 
   return (
-    <nav className="px-2 py-4 md:px-8 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between gap-4 px-4 py-3">
-        <Link href={"/"} className="self-center">
+    <nav className="border-b border-b-border">
+      <div className="mx-auto flex max-h-30 max-w-7xl items-center justify-between gap-4 px-4 md:px-8">
+        <Link href={"/"} className="flex items-center self-start">
           <Image
             src={"/logo.png"}
             alt="logo"
-            width={80}
-            height={80}
-            className="object-center"
+            width={156}
+            height={156}
+            className="h-40 w-auto object-contain"
+            priority
           />
         </Link>
 
-        <div className="gap-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
           <Link href={"/"} className=" items-center gap-2 hidden sm:flex">
             <Home />
             <span>Home</span>
@@ -90,8 +91,10 @@ const Navbar = () => {
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem>
-                  <User className="h-[1.2rem] w-[1.2rem] mr-2" />
-                  Profile
+                  <Link href={"/profile"} className="flex gap-1">
+                    <User className="h-[1.2rem] w-[1.2rem] mr-2" />
+                    Profile
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem variant="destructive">
                   <LogOut className="h-[1.2rem] w-[1.2rem] mr-2" />
@@ -119,7 +122,7 @@ const Navbar = () => {
                 <DropdownMenuItem>
                   <Link href={"/mealplan"} className="flex gap-1">
                     <UtensilsCrossed className="h-[1.2rem] w-[1.2rem] mr-2" />
-                    Generate Meal Plans
+                    Generate Meal Plans (subscription required)
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem>

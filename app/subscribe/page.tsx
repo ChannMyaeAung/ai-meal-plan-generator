@@ -127,7 +127,7 @@ const SubscribePage = () => {
       initial="hidden"
       animate="show"
       variants={containerVariants}
-      className="relative isolate min-h-dvh overflow-hidden bg-linear-to-br from-background via-secondary/25 to-card px-6 py-35 text-foreground"
+      className="relative isolate min-h-dvh overflow-hidden bg-linear-to-br from-background via-secondary/25 to-card px-6 py-8 text-foreground"
     >
       <div className="pointer-events-none absolute inset-0 blur-3xl">
         <div className="absolute left-1/2 top-10 h-64 w-64 -translate-x-1/2 rounded-full bg-primary/20" />

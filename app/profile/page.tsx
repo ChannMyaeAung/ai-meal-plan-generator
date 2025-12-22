@@ -11,10 +11,22 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { availablePlans } from "@/lib/plans";
 import { useUser } from "@clerk/nextjs";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
 import { useState } from "react";
-import { Toaster } from "react-hot-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import toast, { Toaster } from "react-hot-toast";
+import { useRouter } from "next/navigation";
 
 async function fetchSubscriptionStatus() {
   const response = await fetch("/api/profile/subscription-status");
@@ -32,14 +44,27 @@ async function updatePlan(newPlan: string) {
   return response.json();
 }
 
+async function cancelSubscription() {
+  const response = await fetch("/api/profile/unsubscribe", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  return response.json();
+}
+
 const ProfilePage = () => {
   const [selectedPlan, setSelectedPlan] = useState<string>("");
   const { isLoaded, isSignedIn, user } = useUser();
+  const queryClient = useQueryClient();
+  const router = useRouter();
   const {
     data: subscription,
     isLoading,
     isError,
     error,
+    refetch,
   } = useQuery({
     queryKey: ["subscription"],
     queryFn: fetchSubscriptionStatus,
@@ -53,6 +78,29 @@ const ProfilePage = () => {
     isPending: isUpdatePlanPending,
   } = useMutation({
     mutationFn: updatePlan,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
+      toast.success("Subscription plan updated successfully.");
+      refetch();
+    },
+    onError: () => {
+      toast.error("Failed to update subscription plan.");
+    },
+  });
+
+  const {
+    data: canceledPlan,
+    mutate: unsubscribeMutation,
+    isPending: isUnsubscribePending,
+  } = useMutation({
+    mutationFn: cancelSubscription,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
+      router.push("/subscribe");
+    },
+    onError: () => {
+      toast.error("Failed to cancel subscription plan.");
+    },
   });
 
   const currentPlan = availablePlans.find(
@@ -85,10 +133,10 @@ const ProfilePage = () => {
   }
 
   return (
-    <div className="min-h-screen px-4 py-8 sm:py-35 max-w-7xl mx-auto overflow-hidden space-y-4">
+    <div className="min-h-screen px-4 py-8 max-w-7xl mx-auto overflow-hidden space-y-4">
       <Toaster position="top-center" />
       <div className="">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           {user.imageUrl && (
             <Image
               src={user.imageUrl}
@@ -108,7 +156,7 @@ const ProfilePage = () => {
           </div>
         </div>
       </div>
-      <div className="flex flex-col gap-8 md:flex-row md:gap-16">
+      <div className="grid gap-12 sm:grid-cols-[1.5fr_1fr]">
         {/* Subscription Details */}
         <div>
           <h2 className="text-xl font-semibold mb-4">Subscription Details</h2>
@@ -157,11 +205,11 @@ const ProfilePage = () => {
 
         {/* Change Subscription Plan */}
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold mb-4">
-            Change Subscription Plan
-          </h2>
           {currentPlan && (
             <>
+              <h2 className="text-xl font-semibold mb-4">
+                Change Subscription Plan
+              </h2>
               <Select
                 defaultValue={currentPlan?.interval}
                 disabled={isUpdatePlanPending}
@@ -181,20 +229,53 @@ const ProfilePage = () => {
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              <Button onClick={handleUpdatePlan}>Save Changes</Button>
+              <Button onClick={handleUpdatePlan} className="cursor-pointer">
+                Save Changes
+              </Button>
               {isUpdatePlanPending && (
                 <div>
                   {" "}
                   <Spinner /> Updating Plan...
                 </div>
               )}
+
+              <div>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant={"destructive"}
+                      className="cursor-pointer hover:bg-destructive/70"
+                    >
+                      Cancel Subscription
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        Are you sure you want to cancel your subscription?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        You will lose access to premium features at the end of
+                        your billing cycle.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => unsubscribeMutation()}
+                        disabled={isUnsubscribePending}
+                        className="bg-destructive text-foreground hover:bg-destructive/90 cursor-pointer"
+                      >
+                        {isUnsubscribePending
+                          ? "Canceling Subscription..."
+                          : "Cancel Subscription"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </>
           )}
-
-          {/* Cancel Subscription */}
-          <div>
-            <Button variant={"destructive"}>Cancel Subscription</Button>
-          </div>
         </div>
       </div>
     </div>

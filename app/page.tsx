@@ -1,15 +1,103 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
+import { Suspense, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { easeInOut, motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Playfair_Display, Space_Grotesk } from "next/font/google";
-import Navbar from "@/components/navbar";
+import TestimonialsSection from "@/components/testimonials";
+
+const FinalizeCheckoutBanners = () => {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [finalizeState, setFinalizeState] = useState<
+    "idle" | "pending" | "success" | "error"
+  >("idle");
+
+  const sessionId = searchParams.get("session_id");
+  const searchParamsString = searchParams.toString();
+
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const finalize = async () => {
+      setFinalizeState("pending");
+      try {
+        const response = await fetch("/api/profile/finalize-checkout", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ sessionId }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Finalization failed");
+        }
+
+        if (!cancelled) {
+          setFinalizeState("success");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setFinalizeState("error");
+        }
+      } finally {
+        if (!cancelled) {
+          const params = new URLSearchParams(searchParamsString);
+          params.delete("session_id");
+          const next = params.size ? `${pathname}?${params}` : pathname;
+          router.replace(next);
+        }
+      }
+    };
+
+    finalize();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, pathname, router, searchParamsString]);
+
+  if (finalizeState === "idle") {
+    return null;
+  }
+
+  return (
+    <div>
+      {finalizeState === "pending" && (
+        <div className="mb-6 rounded-xl border border-primary/40 bg-primary/5 px-4 py-3 text-sm text-primary">
+          Activating your subscription...
+        </div>
+      )}
+      {finalizeState === "success" && (
+        <div className="mb-6 rounded-xl border border-emerald-400/70 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          Subscription active! You now have full access.
+        </div>
+      )}
+      {finalizeState === "error" && (
+        <div className="mb-6 rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          We charged your card but could not update your profile. Please refresh
+          or contact support.
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function Home() {
   return (
-    <div className="px-4 py-8 sm:py-35 max-w-7xl mx-auto overflow-hidden">
+    <div className="px-4 py-8 max-w-7xl mx-auto overflow-hidden">
+      <Suspense fallback={null}>
+        <FinalizeCheckoutBanners />
+      </Suspense>
       <div className="relative mx-auto flex max-w-7xl flex-col items-center justify-center">
         <div className="px-4 py-10 md:py-20">
           <div className="pointer-events-none absolute inset-0 blur-3xl">
@@ -103,6 +191,8 @@ export default function Home() {
           </motion.div>
         </div>
       </div>
+
+      <TestimonialsSection />
     </div>
   );
 }
