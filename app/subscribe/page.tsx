@@ -9,11 +9,13 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 import { motion, type Variants } from "motion/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import { useState } from "react";
 
 const containerVariants: Variants = {
   hidden: { opacity: 0, y: 35 },
@@ -49,29 +51,18 @@ const cardVariants: Variants = {
   },
 };
 
-type SubscribeResponse = {
-  url: string;
-};
-
-type SubscribeError = {
-  error: string;
-};
+type SubscribeResponse = { url: string };
+type SubscribeError = { error: string };
 
 async function subscribeToPlan(
   planType: string,
   userId: string,
   email: string
 ): Promise<SubscribeResponse> {
-  const response = await fetch("api/checkout", {
+  const response = await fetch("/api/checkout", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      planType,
-      userId,
-      email,
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ planType, userId, email }),
   });
 
   if (!response.ok) {
@@ -79,29 +70,30 @@ async function subscribeToPlan(
     throw new Error(errorData.error || "Failed to create checkout session.");
   }
 
-  const data: SubscribeResponse = await response.json();
-  return data;
+  return response.json();
 }
+
+const intervalLabel: Record<string, string> = {
+  week: "/ week",
+  month: "/ month",
+  year: "/ year",
+};
 
 const SubscribePage = () => {
   const { user } = useUser();
   const router = useRouter();
-  const queryClient = useQueryClient();
-  const userId = user?.id;
-  const email = user?.emailAddresses[0]?.emailAddress || "";
-  const { mutate, isPending } = useMutation<
-    SubscribeResponse,
-    Error,
-    { planType: string }
-  >({
-    mutationFn: async ({ planType }) => {
-      if (!userId) {
-        throw new Error("User not signed in.");
-      }
+  const [pendingPlan, setPendingPlan] = useState<string | null>(null);
 
+  const userId = user?.id;
+  const email = user?.emailAddresses[0]?.emailAddress ?? "";
+
+  const { mutate } = useMutation<SubscribeResponse, Error, { planType: string }>({
+    mutationFn: async ({ planType }) => {
+      if (!userId) throw new Error("User not signed in.");
       return subscribeToPlan(planType, userId, email);
     },
-    onMutate: () => {
+    onMutate: ({ planType }) => {
+      setPendingPlan(planType);
       toast.loading("Processing your subscription...", { id: "subscribe" });
     },
     onSuccess: (data) => {
@@ -109,16 +101,16 @@ const SubscribePage = () => {
       window.location.href = data.url;
     },
     onError: (error) => {
+      setPendingPlan(null);
       toast.error(error.message, { id: "subscribe" });
     },
   });
 
-  function handleSubcribe(planType: string) {
+  function handleSubscribe(planType: string) {
     if (!userId) {
       router.push("/sign-up");
       return;
     }
-
     mutate({ planType });
   }
 
@@ -143,9 +135,9 @@ const SubscribePage = () => {
             Plans that nourish your routine, not drain your budget
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-base text-muted-foreground md:text-lg">
-            Choose a cadence that matches your kitchen rhythm. Every plan
-            unlocks AI-personalized meal plans, grocery-ready shopping lists,
-            and mindful nutrition insights.
+            Choose a cadence that matches your kitchen rhythm. Every plan unlocks
+            AI-personalized meal plans, grocery-ready shopping lists, and mindful
+            nutrition insights.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
             <span className="rounded-full border border-border bg-card px-4 py-2 shadow-sm">
@@ -164,74 +156,84 @@ const SubscribePage = () => {
           variants={containerVariants}
           className="grid gap-8 md:grid-cols-3 place-items-baseline"
         >
-          {availablePlans.map((plan, idx) => (
-            <motion.div key={idx} variants={cardVariants} className="h-full">
-              <Card
-                className={`relative overflow-hidden rounded-3xl border border-border bg-card/90 p-6 text-left shadow-xl backdrop-blur-sm transition-shadow ${
-                  plan.isPopular ? "ring-2 ring-primary/50" : "hover:shadow-2xl"
-                }`}
-              >
-                <div className="absolute inset-x-0 top-0 h-24 bg-linear-to-b from-card/70 to-transparent" />
-                {plan.isPopular && (
-                  <div className="absolute right-6 top-6">
-                    <span className="inline-flex items-center rounded-full bg-primary/15 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-foreground">
-                      Most loved
-                    </span>
-                  </div>
-                )}
+          {availablePlans.map((plan, idx) => {
+            const isThisPlanPending = pendingPlan === plan.interval;
+            const isAnyPending = pendingPlan !== null;
 
-                <CardHeader className="relative z-10 space-y-2 p-0">
-                  <CardTitle className="text-2xl font-semibold text-foreground">
-                    {plan.name}
-                  </CardTitle>
-                  <CardDescription className="text-base text-muted-foreground">
-                    {plan.description}
-                  </CardDescription>
-                </CardHeader>
+            return (
+              <motion.div key={idx} variants={cardVariants} className="h-full w-full">
+                <Card
+                  className={`relative overflow-hidden rounded-3xl border border-border bg-card/90 p-6 text-left shadow-xl backdrop-blur-sm transition-shadow ${
+                    plan.isPopular ? "ring-2 ring-primary/50" : "hover:shadow-2xl"
+                  }`}
+                >
+                  <div className="absolute inset-x-0 top-0 h-24 bg-linear-to-b from-card/70 to-transparent" />
+                  {plan.isPopular && (
+                    <div className="absolute right-6 top-6">
+                      <span className="inline-flex items-center rounded-full bg-primary/15 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-foreground">
+                        Most loved
+                      </span>
+                    </div>
+                  )}
 
-                <CardContent className="relative z-10 mt-6 flex flex-col gap-6 p-0">
-                  <div>
-                    <span className="text-4xl font-semibold text-foreground">
-                      THB {plan.amount}
-                    </span>
-                    <span className="ml-1 text-sm text-muted-foreground">
-                      /plan
-                    </span>
-                  </div>
+                  <CardHeader className="relative z-10 space-y-2 p-0">
+                    <CardTitle className="text-2xl font-semibold text-foreground">
+                      {plan.name}
+                    </CardTitle>
+                    <CardDescription className="text-base text-muted-foreground">
+                      {plan.description}
+                    </CardDescription>
+                  </CardHeader>
 
-                  <ul className="space-y-3">
-                    {plan.features.map((feature, i) => (
-                      <li key={i} className="flex items-start gap-3">
-                        <span className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                          <Check className="h-3.5 w-3.5" />
+                  <CardContent className="relative z-10 mt-6 flex flex-col gap-6 p-0">
+                    <div className="flex items-end gap-1">
+                      <span className="text-4xl font-semibold text-foreground">
+                        THB {plan.amount}
+                      </span>
+                      <span className="mb-1 text-sm text-muted-foreground">
+                        {intervalLabel[plan.interval] ?? `/ ${plan.interval}`}
+                      </span>
+                    </div>
+
+                    <ul className="space-y-3">
+                      {plan.features.map((feature, i) => (
+                        <li key={i} className="flex items-start gap-3">
+                          <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                            <Check className="h-3.5 w-3.5" />
+                          </span>
+                          <span className="text-sm text-foreground">{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <Button
+                      className={`w-full rounded-full border-0 px-6 py-5 text-base font-semibold shadow-lg transition ${
+                        plan.isPopular
+                          ? "bg-primary text-primary-foreground shadow-primary/30 hover:brightness-95"
+                          : "bg-foreground text-background hover:brightness-95"
+                      }`}
+                      onClick={() => handleSubscribe(plan.interval)}
+                      disabled={isAnyPending}
+                    >
+                      {isThisPlanPending ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <Spinner className="h-4 w-4" />
+                          Processing...
                         </span>
-                        <span className="text-sm text-foreground">
-                          {feature}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                      ) : (
+                        `Get ${plan.name}`
+                      )}
+                    </Button>
 
-                  <Button
-                    className={`w-full rounded-full border-0 px-6 py-5 text-base font-semibold shadow-lg transition ${
-                      plan.isPopular
-                        ? "bg-primary text-primary-foreground shadow-primary/30 hover:brightness-95"
-                        : "bg-foreground text-background hover:brightness-95"
-                    }`}
-                    onClick={() => handleSubcribe(plan.interval)}
-                    disabled={isPending}
-                  >
-                    {isPending ? "Processing..." : `Get ${plan.name}`}
-                  </Button>
-
-                  <p className="text-xs text-muted-foreground">
-                    Secure checkout · Pause or cancel anytime · Includes
-                    AI-powered grocery planning
-                  </p>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
+                    <p className="text-xs text-muted-foreground">
+                      Secure checkout · Pause or cancel anytime · Includes
+                      AI-powered grocery planning
+                    </p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            );
+          })}
         </motion.section>
       </div>
     </motion.div>

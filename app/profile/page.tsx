@@ -25,8 +25,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import { BadgeCheck, CreditCard, ShieldAlert } from "lucide-react";
 
 async function fetchSubscriptionStatus() {
   const response = await fetch("/api/profile/subscription-status");
@@ -36,9 +37,7 @@ async function fetchSubscriptionStatus() {
 async function updatePlan(newPlan: string) {
   const response = await fetch("/api/profile/change-plan", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ newPlan }),
   });
   return response.json();
@@ -47,9 +46,7 @@ async function updatePlan(newPlan: string) {
 async function cancelSubscription() {
   const response = await fetch("/api/profile/unsubscribe", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
   });
   return response.json();
 }
@@ -59,6 +56,7 @@ const ProfilePage = () => {
   const { isLoaded, isSignedIn, user } = useUser();
   const queryClient = useQueryClient();
   const router = useRouter();
+
   const {
     data: subscription,
     isLoading,
@@ -72,54 +70,45 @@ const ProfilePage = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const {
-    data: updatedPlan,
-    mutate: updatePlanMutation,
-    isPending: isUpdatePlanPending,
-  } = useMutation({
-    mutationFn: updatePlan,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["subscription"] });
-      toast.success("Subscription plan updated successfully.");
-      refetch();
-    },
-    onError: () => {
-      toast.error("Failed to update subscription plan.");
-    },
-  });
+  const { mutate: updatePlanMutation, isPending: isUpdatePlanPending } =
+    useMutation({
+      mutationFn: updatePlan,
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["subscription"] });
+        toast.success("Subscription plan updated successfully.");
+        refetch();
+      },
+      onError: () => {
+        toast.error("Failed to update subscription plan.");
+      },
+    });
 
-  const {
-    data: canceledPlan,
-    mutate: unsubscribeMutation,
-    isPending: isUnsubscribePending,
-  } = useMutation({
-    mutationFn: cancelSubscription,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["subscription"] });
-      router.push("/subscribe");
-    },
-    onError: () => {
-      toast.error("Failed to cancel subscription plan.");
-    },
-  });
+  const { mutate: unsubscribeMutation, isPending: isUnsubscribePending } =
+    useMutation({
+      mutationFn: cancelSubscription,
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["subscription"] });
+        router.push("/subscribe");
+      },
+      onError: () => {
+        toast.error("Failed to cancel subscription plan.");
+      },
+    });
 
   const currentPlan = availablePlans.find(
     (plan) => plan.interval === subscription?.subscription?.subscriptionTier
   );
 
   function handleUpdatePlan() {
-    if (selectedPlan) {
-      updatePlanMutation(selectedPlan);
-    }
-
+    if (selectedPlan) updatePlanMutation(selectedPlan);
     setSelectedPlan("");
   }
 
   if (!isLoaded) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-screen items-center justify-center gap-3 text-muted-foreground">
         <Spinner />
-        <p className="ml-2">Loading...</p>
+        <span>Loading...</span>
       </div>
     );
   }
@@ -127,154 +116,202 @@ const ProfilePage = () => {
   if (!isSignedIn) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <p>Please sign in to view your profile.</p>
+        <p className="text-muted-foreground">Please sign in to view your profile.</p>
       </div>
     );
   }
 
+  const initials =
+    user.firstName && user.lastName
+      ? `${user.firstName[0]}${user.lastName[0]}`
+      : user.firstName?.[0] ?? "U";
+
+  const isSubscriptionActive = subscription?.subscription?.subscriptionActive;
+
   return (
-    <div className="min-h-screen px-4 py-8 max-w-7xl mx-auto overflow-hidden space-y-4">
-      <Toaster position="top-center" />
-      <div className="">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          {user.imageUrl && (
+    <div className="relative isolate min-h-screen overflow-hidden bg-linear-to-br from-background via-secondary/20 to-card">
+      <div className="pointer-events-none absolute inset-0 blur-3xl">
+        <div className="absolute left-10 top-20 h-64 w-64 rounded-full bg-primary/15" />
+        <div className="absolute right-6 bottom-16 h-72 w-72 rounded-full bg-secondary/25" />
+      </div>
+
+      <div className="relative z-10 mx-auto max-w-4xl px-4 py-12 space-y-8">
+        {/* Profile header */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-5 rounded-3xl border border-border bg-card/90 p-6 shadow-lg backdrop-blur-sm">
+          {user.imageUrl ? (
             <Image
               src={user.imageUrl}
-              alt="User Profile Image"
-              width={100}
-              height={100}
-              className="rounded-full"
+              alt="Profile photo"
+              width={80}
+              height={80}
+              className="h-20 w-20 rounded-full ring-2 ring-primary/30"
             />
+          ) : (
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/15 text-2xl font-bold text-primary ring-2 ring-primary/30">
+              {initials}
+            </div>
           )}
           <div>
-            <h1 className="text-2xl font-bold">
+            <h1 className="text-2xl font-bold text-foreground">
               {user.firstName} {user.lastName}
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {user.primaryEmailAddress?.emailAddress}
             </p>
+            {isSubscriptionActive && (
+              <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                <BadgeCheck className="h-3.5 w-3.5" />
+                Active Subscriber
+              </span>
+            )}
           </div>
         </div>
-      </div>
-      <div className="grid gap-12 sm:grid-cols-[1.5fr_1fr]">
-        {/* Subscription Details */}
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Subscription Details</h2>
-          {isLoading ? (
-            <Spinner />
-          ) : isError ? (
-            <p className="text-red-500">{error?.message}</p>
-          ) : subscription ? (
-            <div className="bg-card border border-ring rounded-lg p-6">
-              <h3 className="text-lg font-medium mb-4 text-primary">
-                Current Plan
-              </h3>
-              {currentPlan ? (
-                <div className="space-y-2">
-                  <p>
-                    <strong>Plan:</strong> {currentPlan.name}
-                  </p>
-                  <p>
-                    <strong>Amount: </strong> {currentPlan.amount}{" "}
-                    {currentPlan.currency}
-                  </p>
-                  {subscription.subscription?.subscriptionTier && (
-                    <p>
-                      <strong>Tier:</strong>{" "}
-                      {subscription.subscription.subscriptionTier}
-                    </p>
-                  )}
-                  {subscription.subscription?.subscriptionActive !==
-                  undefined ? (
-                    <p>
-                      <strong>Status:</strong>
-                      {subscription.subscription.subscriptionActive
-                        ? " Active"
-                        : " Inactive"}
-                    </p>
-                  ) : null}
-                </div>
-              ) : (
-                <p>No active plan found.</p>
-              )}
-            </div>
-          ) : (
-            <p>You are not subscribed to any plan.</p>
-          )}
-        </div>
 
-        {/* Change Subscription Plan */}
-        <div className="space-y-4">
-          {currentPlan && (
-            <>
-              <h2 className="text-xl font-semibold mb-4">
-                Change Subscription Plan
+        <div className="grid gap-6 sm:grid-cols-[1fr_auto]">
+          {/* Subscription Details */}
+          <div className="rounded-3xl border border-border bg-card/90 p-6 shadow-lg backdrop-blur-sm space-y-4">
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold text-foreground">
+                Subscription Details
               </h2>
-              <Select
-                defaultValue={currentPlan?.interval}
-                disabled={isUpdatePlanPending}
-                onValueChange={(value: string) => setSelectedPlan(value)}
-              >
-                <SelectTrigger className="w-[280px] border-ring">
-                  <SelectValue placeholder={currentPlan.interval} />
-                </SelectTrigger>
+            </div>
 
-                <SelectContent>
-                  <SelectGroup>
-                    {availablePlans.map((plan, key) => (
-                      <SelectItem key={key} value={plan.interval}>
-                        {plan.name} - THB {plan.amount} / {plan.interval}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <Button onClick={handleUpdatePlan} className="cursor-pointer">
-                Save Changes
-              </Button>
-              {isUpdatePlanPending && (
-                <div>
-                  {" "}
-                  <Spinner /> Updating Plan...
+            {isLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Spinner className="h-4 w-4" />
+                <span className="text-sm">Loading subscription...</span>
+              </div>
+            ) : isError ? (
+              <p className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {error?.message ?? "Failed to load subscription."}
+              </p>
+            ) : currentPlan ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-border bg-background/60 px-4 py-3">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Plan</p>
+                    <p className="mt-1 font-semibold text-foreground">{currentPlan.name}</p>
+                  </div>
+                  <div className="rounded-xl border border-border bg-background/60 px-4 py-3">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Amount</p>
+                    <p className="mt-1 font-semibold text-foreground">
+                      {currentPlan.amount} {currentPlan.currency}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-border bg-background/60 px-4 py-3">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Billing</p>
+                    <p className="mt-1 font-semibold text-foreground capitalize">
+                      {currentPlan.interval}ly
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-border bg-background/60 px-4 py-3">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p>
+                    <p className={`mt-1 font-semibold ${isSubscriptionActive ? "text-primary" : "text-destructive"}`}>
+                      {isSubscriptionActive ? "Active" : "Inactive"}
+                    </p>
+                  </div>
                 </div>
-              )}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border bg-background/60 px-4 py-6 text-center">
+                <p className="text-sm text-muted-foreground">No active subscription found.</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => router.push("/subscribe")}
+                >
+                  View Plans
+                </Button>
+              </div>
+            )}
+          </div>
 
-              <div>
+          {/* Change Plan */}
+          {currentPlan && (
+            <div className="rounded-3xl border border-border bg-card/90 p-6 shadow-lg backdrop-blur-sm space-y-4 min-w-[260px]">
+              <h2 className="text-lg font-semibold text-foreground">Manage Plan</h2>
+
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Switch plan</p>
+                <Select
+                  defaultValue={currentPlan.interval}
+                  disabled={isUpdatePlanPending}
+                  onValueChange={(value) => setSelectedPlan(value)}
+                >
+                  <SelectTrigger className="w-full border-border">
+                    <SelectValue placeholder={currentPlan.interval} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {availablePlans.map((plan) => (
+                        <SelectItem key={plan.interval} value={plan.interval}>
+                          {plan.name} — THB {plan.amount}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  onClick={handleUpdatePlan}
+                  disabled={isUpdatePlanPending || !selectedPlan || selectedPlan === currentPlan.interval}
+                  className="w-full"
+                >
+                  {isUpdatePlanPending ? (
+                    <span className="flex items-center gap-2">
+                      <Spinner className="h-4 w-4" />
+                      Updating...
+                    </span>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+              </div>
+
+              <div className="border-t border-border pt-4">
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button
-                      variant={"destructive"}
-                      className="cursor-pointer hover:bg-destructive/70"
+                      variant="destructive"
+                      className="w-full"
+                      disabled={isUnsubscribePending}
                     >
+                      <ShieldAlert className="mr-2 h-4 w-4" />
                       Cancel Subscription
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        Are you sure you want to cancel your subscription?
-                      </AlertDialogTitle>
+                      <AlertDialogTitle>Cancel your subscription?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        You will lose access to premium features at the end of
-                        your billing cycle.
+                        You will keep access until the end of your current billing
+                        period. After that, AI meal plan generation will be
+                        unavailable.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
                       <AlertDialogAction
                         onClick={() => unsubscribeMutation()}
                         disabled={isUnsubscribePending}
-                        className="bg-destructive text-foreground hover:bg-destructive/90 cursor-pointer"
+                        className="bg-destructive text-foreground hover:bg-destructive/90"
                       >
-                        {isUnsubscribePending
-                          ? "Canceling Subscription..."
-                          : "Cancel Subscription"}
+                        {isUnsubscribePending ? (
+                          <span className="flex items-center gap-2">
+                            <Spinner className="h-4 w-4" />
+                            Canceling...
+                          </span>
+                        ) : (
+                          "Yes, Cancel"
+                        )}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
