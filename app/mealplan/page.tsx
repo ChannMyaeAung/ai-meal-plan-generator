@@ -13,8 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import { useMutation } from "@tanstack/react-query";
-import React from "react";
+import { useQuery } from "@tanstack/react-query";
+import React, { useState } from "react";
 
 interface MealPlanInput {
   dietType: string;
@@ -38,7 +38,6 @@ interface WeeklyMealPlan {
 
 interface MealPlanResponse {
   mealPlan?: WeeklyMealPlan;
-  error?: string;
 }
 
 async function generateMealPlan(payload: MealPlanInput): Promise<MealPlanResponse> {
@@ -47,7 +46,11 @@ async function generateMealPlan(payload: MealPlanInput): Promise<MealPlanRespons
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  return response.json();
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error ?? "Failed to generate meal plan.");
+  }
+  return data;
 }
 
 const DAYS_OF_WEEK = [
@@ -55,27 +58,40 @@ const DAYS_OF_WEEK = [
 ];
 
 const MealPlanDashboard = () => {
-  const { mutate, isPending, data, isSuccess, isError } = useMutation<
-    MealPlanResponse,
-    Error,
-    MealPlanInput
-  >({ mutationFn: generateMealPlan });
+  // null = form not yet submitted; non-null = active query params.
+  // Changing this triggers a new query; submitting the same values reuses
+  // TanStack Query's in-memory cache (staleTime: Infinity) with no API call.
+  const [queryParams, setQueryParams] = useState<MealPlanInput | null>(null);
 
-  const apiError = data?.error;
+  const { data, isFetching, isSuccess, isError, error } = useQuery<
+    MealPlanResponse,
+    Error
+  >({
+    queryKey: ["mealplan", queryParams],
+    queryFn: () => generateMealPlan(queryParams!),
+    enabled: queryParams !== null,
+    // Never mark this data as stale — identical inputs always serve from cache
+    staleTime: Infinity,
+    // Don't auto-retry on error; let the user decide to retry
+    retry: false,
+    // Keep previous results visible while a new query is in-flight
+    placeholderData: (prev) => prev,
+  });
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const payload: MealPlanInput = {
+    setQueryParams({
       dietType: formData.get("dietType")?.toString() ?? "",
       calories: Number(formData.get("calories")),
       allergies: formData.get("allergies")?.toString() ?? "",
       cuisine: formData.get("cuisine")?.toString() ?? "",
       includeSnacks: formData.get("includeSnacks") === "on",
       days: Number(formData.get("days")) || 7,
-    };
-    mutate(payload);
+    });
   }
+
+  const isPending = isFetching;
 
   return (
     <div className="relative isolate min-h-dvh bg-linear-to-br from-background via-secondary/20 to-card py-16 px-4 sm:px-8">
@@ -219,14 +235,13 @@ const MealPlanDashboard = () => {
               )}
             </div>
 
-            {/* Error from API response */}
-            {(isError || apiError) && !isPending && (
+            {isError && !isPending && (
               <div className="rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                {apiError ?? "Something went wrong generating your meal plan. Please try again."}
+                {error?.message ?? "Something went wrong. Please try again."}
               </div>
             )}
 
-            {data?.mealPlan && isSuccess && !apiError ? (
+            {data?.mealPlan && isSuccess ? (
               <ScrollArea className="h-[600px] pr-4">
                 <div className="space-y-4">
                   {DAYS_OF_WEEK.map((day) => {

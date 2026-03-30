@@ -8,7 +8,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { HeartPlus, Home, LogOut, Moon, Sun, User, UtensilsCrossed } from "lucide-react";
+import {
+  HeartPlus,
+  Home,
+  LogOut,
+  Moon,
+  Sun,
+  User,
+  UtensilsCrossed,
+} from "lucide-react";
 import Link from "next/link";
 import { Button } from "./ui/button";
 import { useTheme } from "next-themes";
@@ -31,13 +39,13 @@ const Navbar = () => {
   const initials =
     user?.firstName && user?.lastName
       ? `${user.firstName[0]}${user.lastName[0]}`
-      : user?.firstName?.[0] ?? "U";
+      : (user?.firstName?.[0] ?? "U");
 
   return (
     <nav className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:px-8">
         {/* Logo */}
-        <Link href="/" className="flex-shrink-0">
+        <Link href="/" className="shrink-0">
           <Image
             src="/logo.png"
             alt="AI Meal Plan Generator"
@@ -59,7 +67,7 @@ const Navbar = () => {
                   "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
                   pathname === href
                     ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted",
                 )}
               >
                 {label}
@@ -80,9 +88,15 @@ const Navbar = () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setTheme("light")}>Light</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme("dark")}>Dark</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme("system")}>System</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("light")}>
+                Light
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("dark")}>
+                Dark
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("system")}>
+                System
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -93,7 +107,10 @@ const Navbar = () => {
                 <button className="rounded-full ring-2 ring-transparent hover:ring-primary/40 transition-all focus-visible:outline-none focus-visible:ring-primary/60">
                   <Avatar className="h-9 w-9 cursor-pointer">
                     {user?.imageUrl ? (
-                      <AvatarImage src={user.imageUrl} alt={user.firstName ?? "User"} />
+                      <AvatarImage
+                        src={user.imageUrl}
+                        alt={user.firstName ?? "User"}
+                      />
                     ) : (
                       <AvatarFallback className="text-xs font-semibold">
                         {initials}
