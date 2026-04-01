@@ -62,12 +62,10 @@ const ProfilePage = () => {
     isLoading,
     isError,
     error,
-    refetch,
   } = useQuery({
     queryKey: ["subscription"],
     queryFn: fetchSubscriptionStatus,
     enabled: isLoaded && isSignedIn,
-    staleTime: 5 * 60 * 1000,
   });
 
   const { mutate: updatePlanMutation, isPending: isUpdatePlanPending } =
@@ -76,7 +74,6 @@ const ProfilePage = () => {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["subscription"] });
         toast.success("Subscription plan updated successfully.");
-        refetch();
       },
       onError: () => {
         toast.error("Failed to update subscription plan.");
@@ -236,7 +233,7 @@ const ProfilePage = () => {
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Switch plan</p>
                 <Select
-                  defaultValue={currentPlan.interval}
+                  value={selectedPlan || currentPlan.interval}
                   disabled={isUpdatePlanPending}
                   onValueChange={(value) => setSelectedPlan(value)}
                 >

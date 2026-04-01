@@ -9,35 +9,114 @@ interface DailyMealPlan {
   Snacks?: string;
 }
 
-// OpenRouter supports up to 3 models in the fallback array.
-// Models are on separate provider infrastructure so they won't all
-// hit the same upstream rate limit simultaneously.
-const FREE_MODEL_FALLBACKS = [
+// ---------------------------------------------------------------------------
+// Provider configuration
+// ---------------------------------------------------------------------------
+
+// Groq: OpenAI-compatible, ~14,400 req/day free, very fast inference.
+// Sign up at console.groq.com — free, no credit card required.
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
+
+// OpenRouter: fallback provider when GROQ_API_KEY is not set.
+// Free tier is 50 req/day (account-wide); add $10 credits for 1,000/day.
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_FREE_MODELS = [
   "nvidia/nemotron-3-super-120b-a12b:free",
   "google/gemma-3-27b-it:free",
   "google/gemma-3-12b-it:free",
 ];
 
+// ---------------------------------------------------------------------------
+// Retry logic
+// ---------------------------------------------------------------------------
+
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = [1000, 2000, 4000];
+
+// Transient errors worth retrying — provider is temporarily unavailable or
+// rate-limited (we back off and try again rather than failing immediately).
+const RETRIABLE_STATUSES = new Set([429, 502, 503, 504]);
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Attempt to recover a valid JSON object from a response that was cut off
-// mid-stream due to token limits. Walks the string character-by-character,
-// tracks brace depth (properly ignoring braces inside strings), and trims
-// to the last fully-closed top-level value, then closes the outer object.
+async function callWithRetry(
+  url: string,
+  headers: Record<string, string>,
+  body: object,
+  providerName: string
+): Promise<Response> {
+  let lastResponse!: Response;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    lastResponse = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!RETRIABLE_STATUSES.has(lastResponse.status)) return lastResponse;
+
+    const isLastAttempt = attempt === MAX_RETRIES - 1;
+    if (!isLastAttempt) {
+      console.warn(
+        `[generate-mealplan] ${providerName} ${lastResponse.status}, retrying in ${RETRY_DELAY_MS[attempt]}ms (attempt ${attempt + 1}/${MAX_RETRIES})`
+      );
+      await sleep(RETRY_DELAY_MS[attempt]);
+    }
+  }
+
+  return lastResponse;
+}
+
+// Tries Groq first (if GROQ_API_KEY is set), then falls back to OpenRouter.
+async function callAIProvider(messages: object[]): Promise<Response> {
+  const groqKey = process.env.GROQ_API_KEY;
+  if (groqKey) {
+    return callWithRetry(
+      GROQ_URL,
+      { Authorization: `Bearer ${groqKey}`, "Content-Type": "application/json" },
+      { model: GROQ_MODEL, messages, temperature: 0.7, max_tokens: 8000 },
+      "Groq"
+    );
+  }
+
+  const openRouterKey = process.env.OPEN_ROUTER_API_KEY;
+  if (openRouterKey) {
+    return callWithRetry(
+      OPENROUTER_URL,
+      {
+        Authorization: `Bearer ${openRouterKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000",
+        "X-Title": "AI Meal Plan Generator",
+      },
+      // `models` array = OpenRouter-specific provider fallback (max 3)
+      { models: OPENROUTER_FREE_MODELS, messages, temperature: 0.7, max_tokens: 8000 },
+      "OpenRouter"
+    );
+  }
+
+  throw new Error("No AI provider configured. Set GROQ_API_KEY or OPEN_ROUTER_API_KEY.");
+}
+
+// ---------------------------------------------------------------------------
+// JSON repair helper
+// ---------------------------------------------------------------------------
+
+// Attempt to recover a valid JSON object from a response cut off mid-stream
+// due to token limits. Walks char-by-char, tracks brace depth (ignoring
+// braces inside strings), trims to the last fully-closed day, closes outer.
 function repairTruncatedJSON(raw: string): string | null {
   let depth = 0;
   let inString = false;
   let escaped = false;
-  let lastCompleteDayEnd = -1; // index of the '}' that closed the last complete day
+  let lastCompleteDayEnd = -1;
 
   for (let i = 0; i < raw.length; i++) {
     const ch = raw[i];
-
     if (escaped) { escaped = false; continue; }
     if (ch === "\\" && inString) { escaped = true; continue; }
     if (ch === '"') { inString = !inString; continue; }
@@ -47,14 +126,11 @@ function repairTruncatedJSON(raw: string): string | null {
       depth++;
     } else if (ch === "}") {
       depth--;
-      // depth 1 means we just closed a day-level object (outer `{` is depth 0→1,
-      // each day value `{` is 1→2, closing it returns to depth 1)
       if (depth === 1) lastCompleteDayEnd = i;
       if (depth === 0) return raw; // already valid
     }
   }
 
-  // JSON was truncated — stitch together everything up to the last complete day
   if (lastCompleteDayEnd > 0) {
     const repaired = raw.slice(0, lastCompleteDayEnd + 1) + "\n}";
     try {
@@ -68,50 +144,26 @@ function repairTruncatedJSON(raw: string): string | null {
   return null;
 }
 
-async function callOpenRouter(apiKey: string, body: object): Promise<Response> {
-  let lastResponse!: Response;
+// ---------------------------------------------------------------------------
+// App-level rate limiting (per user, per day)
+// ---------------------------------------------------------------------------
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    lastResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000",
-        "X-Title": "AI Meal Plan Generator",
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (lastResponse.status !== 429) return lastResponse;
-
-    const isLastAttempt = attempt === MAX_RETRIES - 1;
-    if (!isLastAttempt) {
-      console.warn(
-        `[generate-mealplan] 429 received, retrying in ${RETRY_DELAY_MS[attempt]}ms (attempt ${attempt + 1}/${MAX_RETRIES})`
-      );
-      await sleep(RETRY_DELAY_MS[attempt]);
-    }
-  }
-
-  return lastResponse;
-}
-
-// App-level per-user daily caps — separate from OpenRouter's API quota.
-// Free users get a taste; subscribers get a comfortable working limit.
 const FREE_DAILY_LIMIT = 10;
 const SUBSCRIBER_DAILY_LIMIT = 50;
 
+// ---------------------------------------------------------------------------
+// Route handler
+// ---------------------------------------------------------------------------
+
 export async function POST(request: Request) {
-  const apiKey = process.env.OPEN_ROUTER_API_KEY;
-  if (!apiKey) {
+  // Verify at least one AI provider is configured
+  if (!process.env.GROQ_API_KEY && !process.env.OPEN_ROUTER_API_KEY) {
     return NextResponse.json(
-      { error: "Server misconfiguration: missing API key." },
+      { error: "Server misconfiguration: no AI provider API key set." },
       { status: 500 }
     );
   }
 
-  // Rate limiting — enforced per user per calendar day (UTC)
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
@@ -139,7 +191,7 @@ export async function POST(request: Request) {
         error: `Daily limit of ${limit} meal plans reached. ${
           profile?.subscriptionActive
             ? "Your limit resets tomorrow."
-            : "Upgrade to a plan for up to 20 generations per day."
+            : "Upgrade to a plan for more daily generations."
         }`,
       },
       { status: 429 }
@@ -150,8 +202,6 @@ export async function POST(request: Request) {
     const { dietType, calories, allergies, cuisine, includeSnacks, days } =
       await request.json();
 
-    // Prompt is deliberately terse — verbose meal descriptions blow through the
-    // model's ~4096 output token ceiling before all 7 days are written.
     const prompt = `You are a nutritionist. Return ONLY a raw JSON object — no markdown, no code fences, no commentary.
 
 Create a ${days}-day meal plan: ${dietType} diet, ${calories} kcal/day.
@@ -168,23 +218,30 @@ Rules:
 Output format:
 {"Monday":{"Breakfast":"...","Lunch":"...","Dinner":"..."${includeSnacks ? `,"Snacks":"..."` : ""}},"Tuesday":{...},...}`;
 
-    const aiResponse = await callOpenRouter(apiKey, {
-      models: FREE_MODEL_FALLBACKS,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-      max_tokens: 8000,
-    });
+    const aiResponse = await callAIProvider([{ role: "user", content: prompt }]);
 
-    const aiData = await aiResponse.json();
+    let aiData: Record<string, unknown>;
+    try {
+      aiData = await aiResponse.json();
+    } catch {
+      console.error("[generate-mealplan] Non-JSON response, status:", aiResponse.status);
+      return NextResponse.json(
+        { error: "AI provider returned an unexpected response. Please try again." },
+        { status: 502 }
+      );
+    }
 
-    if (!aiResponse.ok || aiData.error) {
-      const code = aiData.error?.code ?? aiResponse.status;
-      const message = aiData.error?.message ?? "Unknown error from AI provider.";
-      console.error("[generate-mealplan] OpenRouter error:", { code, message });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const aiAny = aiData as any;
+
+    if (!aiResponse.ok || aiAny.error) {
+      const code = aiAny.error?.code ?? aiResponse.status;
+      const message = aiAny.error?.message ?? "Unknown error from AI provider.";
+      console.error("[generate-mealplan] Provider error:", { code, message });
 
       if (code === 429) {
         return NextResponse.json(
-          { error: "All free AI models are currently busy. Please wait a moment and try again." },
+          { error: "AI provider is rate-limited. Please wait a moment and try again." },
           { status: 429 }
         );
       }
@@ -195,9 +252,8 @@ Output format:
       );
     }
 
-    const rawContent = aiData.choices?.[0]?.message?.content?.trim() ?? "";
+    const rawContent: string = aiAny.choices?.[0]?.message?.content?.trim() ?? "";
 
-    // Strip markdown code fences in case the model ignores our instructions
     const cleanedContent = rawContent
       .replace(/```json/gi, "")
       .replace(/```/g, "")
@@ -205,17 +261,15 @@ Output format:
 
     let parsedMealPlan: { [day: string]: DailyMealPlan } | null = null;
 
-    // First attempt: parse as-is
     try {
       parsedMealPlan = JSON.parse(cleanedContent);
     } catch {
-      // Second attempt: try to recover from token-limit truncation
       console.warn("[generate-mealplan] JSON parse failed, attempting repair...");
       const repaired = repairTruncatedJSON(cleanedContent);
       if (repaired) {
         try {
           parsedMealPlan = JSON.parse(repaired);
-          console.warn("[generate-mealplan] Recovered partial meal plan from truncated response.");
+          console.warn("[generate-mealplan] Recovered partial meal plan.");
         } catch {
           // repair also failed — fall through to error response
         }

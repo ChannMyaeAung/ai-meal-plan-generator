@@ -13,8 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import { useQuery } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import React, { useEffect, useState } from "react";
 
 interface MealPlanInput {
   dietType: string;
@@ -57,38 +57,82 @@ const DAYS_OF_WEEK = [
   "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
 ];
 
+const STORAGE_KEY = "mealplan_last_query";
+
+interface StoredMealPlanState {
+  params: MealPlanInput;
+  result?: MealPlanResponse;
+}
+
+function loadStoredState(): StoredMealPlanState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as StoredMealPlanState) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveToStorage(params: MealPlanInput, result?: MealPlanResponse) {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ params, result }));
+  } catch {
+    // sessionStorage unavailable in some private-browsing configurations
+  }
+}
+
 const MealPlanDashboard = () => {
-  // null = form not yet submitted; non-null = active query params.
-  // Changing this triggers a new query; submitting the same values reuses
-  // TanStack Query's in-memory cache (staleTime: Infinity) with no API call.
-  const [queryParams, setQueryParams] = useState<MealPlanInput | null>(null);
+  const queryClient = useQueryClient();
+
+  // Lazy initialiser runs ONCE synchronously before useQuery.
+  // If sessionStorage has a completed result, we inject it directly into the
+  // QueryClient cache here — so useQuery finds data already present and skips
+  // the API call entirely (staleTime: Infinity keeps it fresh).
+  const [queryParams, setQueryParams] = useState<MealPlanInput | null>(() => {
+    const stored = loadStoredState();
+    if (stored?.params && stored?.result) {
+      queryClient.setQueryData(["mealplan", stored.params], stored.result);
+    }
+    return stored?.params ?? null;
+  });
 
   const { data, isFetching, isSuccess, isError, error } = useQuery<
     MealPlanResponse,
     Error
   >({
     queryKey: ["mealplan", queryParams],
-    queryFn: () => generateMealPlan(queryParams!),
+    queryFn: ({ signal: _signal }) => generateMealPlan(queryParams!),
     enabled: queryParams !== null,
-    // Never mark this data as stale — identical inputs always serve from cache
     staleTime: Infinity,
-    // Don't auto-retry on error; let the user decide to retry
     retry: false,
-    // Keep previous results visible while a new query is in-flight
     placeholderData: (prev) => prev,
+    gcTime: Infinity,
   });
+
+  // Persist the completed result so it survives full-page navigations
+  // (e.g. returning from the Stripe checkout page).
+  useEffect(() => {
+    if (data && queryParams) {
+      saveToStorage(queryParams, data);
+    }
+  }, [data, queryParams]);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    setQueryParams({
+    const newParams: MealPlanInput = {
       dietType: formData.get("dietType")?.toString() ?? "",
       calories: Number(formData.get("calories")),
       allergies: formData.get("allergies")?.toString() ?? "",
       cuisine: formData.get("cuisine")?.toString() ?? "",
       includeSnacks: formData.get("includeSnacks") === "on",
       days: Number(formData.get("days")) || 7,
-    });
+    };
+    // Save params immediately (no result yet) so navigation during generation
+    // preserves the params. Result will be saved once generation completes.
+    saveToStorage(newParams);
+    setQueryParams(newParams);
   }
 
   const isPending = isFetching;
@@ -144,6 +188,7 @@ const MealPlanDashboard = () => {
                         required
                         disabled={isPending}
                         placeholder="e.g. Vegetarian, Vegan, Keto, Mediterranean..."
+                        defaultValue={queryParams?.dietType ?? ""}
                       />
                     </Field>
 
@@ -158,6 +203,7 @@ const MealPlanDashboard = () => {
                         required
                         disabled={isPending}
                         placeholder="e.g. 2000"
+                        defaultValue={queryParams?.calories ?? ""}
                       />
                     </Field>
 
@@ -171,6 +217,7 @@ const MealPlanDashboard = () => {
                         name="allergies"
                         disabled={isPending}
                         placeholder='e.g. Peanuts, Gluten, Dairy — or "None"'
+                        defaultValue={queryParams?.allergies ?? ""}
                       />
                     </Field>
 
@@ -182,12 +229,13 @@ const MealPlanDashboard = () => {
                         name="cuisine"
                         disabled={isPending}
                         placeholder='e.g. Italian, Mexican, Chinese — or "No Preference"'
+                        defaultValue={queryParams?.cuisine ?? ""}
                       />
                     </Field>
 
                     <Field orientation="horizontal">
                       <Checkbox
-                        defaultChecked
+                        defaultChecked={queryParams?.includeSnacks ?? true}
                         id="includeSnacks"
                         name="includeSnacks"
                         disabled={isPending}
